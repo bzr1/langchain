@@ -130,10 +130,16 @@ def value_sanitize(d: Any) -> Any:
 def _get_node_import_query(baseEntityLabel: bool, include_source: bool) -> str:
     if baseEntityLabel:
         return (
-            f"{include_docs_query if include_source else ''}"
+           f"{include_docs_query if include_source else ''}"
             "UNWIND $data AS row "
+            # Attempt to MATCH the node first
+            f"MATCH (existingSource:`{BASE_ENTITY_LABEL}` {{id: row.id}}) "
+            "WITH existingSource, row "
+            "WHERE existingSource IS NULL "
+            # If no match is found, create a new node using MERGE
             f"MERGE (source:`{BASE_ENTITY_LABEL}` {{id: row.id}}) "
-            "SET source += row.properties "
+            "ON CREATE SET source += row.properties "  # Set properties when created
+            "ON MATCH SET source += row.properties "   # Update properties if matched
             f"{'MERGE (d)-[:MENTIONS]->(source) ' if include_source else ''}"
             "WITH source, row "
             "CALL apoc.create.addLabels( source, [row.type] ) YIELD node "
